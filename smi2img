@@ -1,0 +1,414 @@
+#!/usr/bin/env python3
+
+# Author: Yongbeom Kwon
+# https://github.com/duaibeom/SMILES2Image
+
+__version__ = "0.1b"
+
+import sys
+import math
+import argparse
+from pathlib import Path
+
+
+class Color:
+    PURPLE = "\033[95m"
+    CYAN = "\033[96m"
+    DARKCYAN = "\033[36m"
+    BLUE = "\033[94m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+    END = "\033[0m"
+
+
+class GenerateIMG:
+    def __init__(self) -> None:
+        self.imgs = []
+        self.mols = []
+        if not args.smiles:
+            self.input_file_path = Path(args.input)
+        self.out_file_path = Path(args.output)
+        self.format = self.out_file_path.suffix
+        self.svg = self.format == ".svg"
+        self.sep = None
+        self.header = None
+        self.df = None
+
+    def __call__(self, file_name):
+        self.sep_checker(file_name)
+        self.header = self.header_checker(str(file_name))
+        self.get_from_pandas(str(file_name), self.sep, self.header)
+        self.img_process()
+        self.save()
+
+    def sep_checker(self, _input) -> str:
+        with open(_input) as f:
+            try:
+                line = f.readline()
+            except UnicodeDecodeError:
+                raise PermissionError("NUMPY format is not supported.")
+            if "," in line:
+                self.sep = ","
+            elif "\t" in line:
+                self.sep = "\t"
+            elif " " in line:
+                self.sep = " "
+            else:
+                self.sep = ","
+
+    def header_checker(self, _input):
+        with open(str(_input)) as f:
+            line = f.readline()
+        if "SMILES" in line.upper():
+            return 0
+        else:
+            _tmp = line.split(self.sep)
+            for i in _tmp:
+                if Chem.MolFromSmiles(i):
+                    return None
+            return None
+
+    @staticmethod
+    def smiles_columns_checker_from_pandas(_df) -> list:
+        selected_columns = []
+        for i in range(_df.shape[1]):
+            try:
+                if Chem.MolFromSmiles(_df.iloc[0, i]):
+                    selected_columns.append(i)
+            except:
+                pass
+
+        if len(selected_columns) > 1:
+            print(
+                f"WARNING, YOUR FILE HAS MULTIPLE SMILES COLUMNS!\nThis script recommends only one smiles column."
+            )
+            _response = None
+            while _response not in ["Y", "n"]:
+                _response = input("Are you want to continue? [Y/n]")
+                if _response not in ["Y", "n"]:
+                    print('Please typing in ["Y" or "n"]')
+            if _response == "n":
+                sys.exit()
+            elif _response == "Y":
+                print(_df.head())
+                print("Please, select only one column.")
+                selected_var = int(
+                    input(f"Which column do you want? {selected_columns}")
+                )
+            return selected_columns[selected_var]
+
+        return selected_columns[0]
+
+    def get_from_smi(self) -> str:
+        pass
+
+    def get_from_numpy(self) -> str:
+        pass
+
+    def get_from_pandas(self, _input, _sep, _header):
+        self.df = pd.read_csv(_input, sep=_sep, header=_header)
+
+        if args.verbosity > 0:
+            print(f"head @ {args.input}, shape: {self.df.shape}")
+            print(self.df.head())
+            print("\n")
+
+        self.smiles_column = self.smiles_columns_checker_from_pandas(self.df)
+        self.df_columns = self.df.columns.tolist()
+        print(f"Selected SMILES column index is {self.smiles_column}.\n")
+
+    def img_process(self):
+        if args.sort is not None:
+            if len(args.sort) == 0:
+                # print(f'## SET SORTING ##')
+                print(f"{Color.BOLD}## SET SORTING ##{Color.END}")
+                for _, ls_column in enumerate(self.df_columns):
+                    print(f"{_}: {ls_column}")
+                select = input(
+                    "What column do you want sorted\n"
+                    "If you don't want sorting, Just [Enter]\n"
+                    "Please select column number (or numbers) : "
+                ).split()
+                if len(select) != 0:
+                    select = [self.df_columns[int(i)] for i in select]
+                    _df = self.df.sort_values(by=select)
+                print("\n")
+            elif len(args.sort) > 0:
+                select = args.sort
+                _df = self.df.sort_values(by=select)
+
+            self.df = _df[:: args.reverse]
+            if args.verbosity > 0:
+                print(f"{Color.BOLD}{Color.GREEN}@ SORTED{Color.END} by {select}")
+                print(_df.head())
+                print("\n")
+
+        # ---------------------------------------------------------
+        top_df = self.df.iloc[: args.ntop]
+
+        # ---------------------------------------------------------
+        for _smi in top_df.iloc[:, self.smiles_column]:
+            _mol = Chem.MolFromSmiles(_smi)
+            Chem.rdDepictor.Compute2DCoords(_mol)
+            self.mols.append(_mol)
+
+        # ---------------------------------------------------------
+        legends = None
+        if args.verbosity >= 2:
+            # print(f'## SET LEGENDS ##')
+            print(f"{Color.BOLD}## SET LEGENDS ##{Color.END}")
+            for _, ls_column in enumerate(self.df_columns):
+                print(f"{_}: {ls_column}")
+            selected_columns = input(
+                "What column do you want legends\n"
+                "If you don't want legends, Just [Enter]\n"
+                "Please select a column number (or numbers) : "
+            ).split()
+            print("\n")
+
+            k = 0
+            string_cut_off = 35
+            if len(selected_columns) != 0:
+                legends = []
+                selected_columns = [int(i) for i in selected_columns]
+                for i in selected_columns:
+                    for _, j in enumerate(top_df.iloc[:, i]):
+                        if k == 0:
+                            if type(j) in [float, int]:
+                                _string = f"{self.df_columns[i]} {j:.3f}"
+                                legends.append(_string)
+                            elif type(j) is str:
+                                _string = f"{self.df_columns[i]} {j}"
+                                legends.append(_string)
+                        else:
+                            if type(j) in [float, int]:
+                                _string = f", {self.df_columns[i]} {j:.3f}"
+                                legends[_] += _string
+                            elif type(j) is str:
+                                _string = f", {self.df_columns[i]} {j}"
+                                legends[_] += _string
+                    k += 1
+
+                _tmp_legends = []
+                for _string in legends:
+                    _str_len = len(_string)
+                    if _str_len > string_cut_off:
+                        _n = _str_len // string_cut_off
+                        _i = 0
+                        while True:
+                            if _n == _i:
+                                break
+                            _cut_off = _string.find(",", (_i + 1) * string_cut_off + _i)
+                            if _cut_off > 0:
+                                _string = _string[:_cut_off] + "\n" + _string[_cut_off:]
+                            _i += 1
+                    _tmp_legends.append(_string)
+                legends = _tmp_legends
+                del _tmp_legends
+
+        # ---------------------------------------------------------
+        max_image = args.max_per_img
+
+        if args.ntop > max_image:
+            print(
+                f"The image file can have maximum 50 molecules.\n"
+                f"So multiple image files can be generated.\n"
+            )
+            quotient = math.ceil(args.ntop / max_image)
+            print(
+                f"{Color.BOLD}{quotient}{Color.END} image files are being generated !\n"
+            )
+            for _ in range(quotient):
+                tmp_mols = self.mols[_ * max_image : (_ + 1) * max_image]
+                if args.verbosity == 2:
+                    tmp_legends = legends[_ * max_image : (_ + 1) * max_image]
+                    self.imgs.append(
+                        Draw.MolsToGridImage(
+                            tmp_mols,
+                            molsPerRow=args.mols_per_row,
+                            subImgSize=args.size,
+                            legends=tmp_legends,
+                            useSVG=self.svg,
+                        )
+                    )
+                else:
+                    self.imgs.append(
+                        Draw.MolsToGridImage(
+                            tmp_mols,
+                            molsPerRow=args.mols_per_row,
+                            subImgSize=args.size,
+                            useSVG=self.svg,
+                        )
+                    )
+        else:
+            self.imgs.append(
+                Draw.MolsToGridImage(
+                    self.mols,
+                    molsPerRow=args.mols_per_row,
+                    subImgSize=args.size,
+                    legends=legends,
+                    useSVG=self.svg,
+                )
+            )
+
+    def save(self):
+        if len(self.format) == 0:
+            print("image format not defind. default save .png")
+            self.format = ".png"
+
+        if len(self.imgs) > 1:
+            for _, img in enumerate(self.imgs):
+                if self.format == ".png":
+                    img.save(
+                        f"{self.out_file_path.parent}/{self.out_file_path.stem}_{_}{self.format}"
+                    )
+                elif self.format == ".svg":
+                    with open(
+                        f"{self.out_file_path.parent}/{self.out_file_path.stem}_{_}{self.format}",
+                        "w",
+                    ) as f:
+                        f.write(img)
+                print(
+                    f"{Color.BOLD}# {self.out_file_path.parent}/{self.out_file_path.stem}_{_}{self.format} is saved.{Color.END}"
+                )
+        elif len(self.imgs) == 1:
+            if self.format == ".png":
+                self.imgs[0].save(
+                    f"{self.out_file_path.parent}/{self.out_file_path.stem}{self.format}"
+                )
+            elif self.format == ".svg":
+                with open(
+                    f"{self.out_file_path.parent}/{self.out_file_path.stem}{self.format}",
+                    "w",
+                ) as f:
+                    f.write(self.imgs[0])
+            print(
+                f"{Color.BOLD}# {self.out_file_path.parent}/{self.out_file_path.stem}{self.format} is saved.{Color.END}"
+            )
+        else:
+            raise ValueError("Image is not generated!")
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(
+        description="This program requires python3.6 or higher and RDKit python package"
+        " // Made by Yongbeom Kwon at 2019-12-30"
+    )
+    group = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument("-V", "--version", action="store_true")
+    group.add_argument("-i", "--input", metavar="INPUT FILENAME", help="input file")
+    group.add_argument("-S", "--smiles", nargs="+", help="")
+    parser.add_argument(
+        "-o",
+        "--output",
+        metavar="OUTPUT FILENAME",
+        required=True,
+        help="Output file name and format (format .png, .svg)",
+    )
+    parser.add_argument(
+        "-n",
+        "--ntop",
+        metavar="N",
+        type=int,
+        default=10,
+        help="The total number of molecules displayed in the figures (default: 10)",
+    )
+    parser.add_argument(
+        "-row",
+        "--mols-per-row",
+        metavar="N",
+        type=int,
+        default=5,
+        help="The number of molecules per row (default: 5)",
+    )
+    parser.add_argument(
+        "-sort",
+        "--sort",
+        metavar="COLUMN NAME",
+        nargs="*",
+        help="Sort is performed on the columns to be defined or to be determined.",
+    )
+    parser.add_argument(
+        "-max",
+        "--max-per-img",
+        metavar="N",
+        type=int,
+        default=50,
+        help="The number of molecules per image (maximum 50)",
+    )
+    parser.add_argument(
+        "-R",
+        "--reverse",
+        action="store_const",
+        const=1,
+        default=-1,
+        help="Reverse sorting",
+    )
+    parser.add_argument(
+        "--size",
+        metavar="N N",
+        type=int,
+        nargs=2,
+        default=[280, 230],
+        help="The size of figure of each molecule (default: L 280 * H 230)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbosity",
+        action="count",
+        default=0,
+        help="increase output verbosity. v: print csv, vv: set legends, vvv: rdkit log",
+    )
+    args = parser.parse_args()
+
+    if args.smiles:
+        print("It will be updated!")
+        sys.exit()
+
+    # [Check] Is the RDKIT package installed? -----------------
+    try:
+        from rdkit.Chem import Draw
+        from rdkit import Chem
+        from rdkit import RDLogger
+
+        if args.verbosity < 3:
+            RDLogger.DisableLog("rdApp.*")
+
+    except ImportError:
+        print(f"Please activate or install {Color.BOLD}RDKit{Color.END}\n")
+        print(
+            "If you want to install RdKit with anaconda3\n"
+            "https://duaibeom.github.io/posts/rdkit/ could be good ref :)\n"
+        )
+        print("Your python3 PATH and version:")
+        print(sys.executable, sys.version)
+        sys.exit()
+    # ---------------------------------------------------------
+
+    if args.version:
+        print("v0.1a\n\nupdated 2019-12-30 Yongbeom Kwon\nFirst version")
+        print(
+            "v0.1b\n\nupdated 2021-04-10 Yongbeom Kwon (duaibeom@gmail.com)\nFirst release on GitHub\nhttps://github.com/duaibeom/SMILES2Image"
+        )
+        sys.exit()
+
+    if args.verbosity:
+        print(sys.executable, sys.version, "\n")
+
+    try:
+        import pandas as pd
+    except ImportError:
+        print(f"Please install {Color.BOLD}pandas{Color.END} package\n")
+        # print(f'{Color.BOLD}pip3 install pandas{Color.END} or {Color.BOLD}conda install pandas{Color.END}\n')
+        print("Your python3 PATH and version:")
+        print(sys.executable, sys.version)
+        sys.exit()
+
+    # ---------------------------------------------------------
+
+    gen_image = GenerateIMG()
+    gen_image(gen_image.input_file_path)

@@ -1,0 +1,6 @@
+SMILES,ID,Chemical formula,CAS Number
+CCCCCC,"hexane",C6H14,110-54-3
+CC(C)CCC,"isohexane",C6H14,107-83-5
+CCC(C)CC,"3-methylpentane",C6H14,96-14-0
+C(C)CC(C)C,"2,3-dimethylbutane",C6H14,79-29-8
+CC(C)(C)CC,"neohexane",C6H14,75-83-2

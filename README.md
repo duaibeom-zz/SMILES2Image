@@ -8,6 +8,47 @@
 
 ![](example.png)
 
+```
+$ ./smi2img -i example.csv -o test.png -vv --sort
+head @ example.csv, shape: (5, 4)
+       SMILES                  ID Chemical formula CAS Number
+0      CCCCCC              hexane            C6H14   110-54-3
+1    CC(C)CCC           isohexane            C6H14   107-83-5
+2    CCC(C)CC     3-methylpentane            C6H14    96-14-0
+3  C(C)CC(C)C  2,3-dimethylbutane            C6H14    79-29-8
+4  CC(C)(C)CC           neohexane            C6H14    75-83-2
+
+Selected SMILES column index is 0.
+
+## SET SORTING ##
+0: SMILES
+1: ID
+2: Chemical formula
+3: CAS Number
+What column do you want sorted
+If you don't want sorting, Just [Enter]
+Please select column number (or numbers) : 3
+
+@ SORTED by ['CAS Number']
+       SMILES                  ID Chemical formula CAS Number
+1    CC(C)CCC           isohexane            C6H14   107-83-5
+0      CCCCCC              hexane            C6H14   110-54-3
+4  CC(C)(C)CC           neohexane            C6H14    75-83-2
+3  C(C)CC(C)C  2,3-dimethylbutane            C6H14    79-29-8
+2    CCC(C)CC     3-methylpentane            C6H14    96-14-0
+
+## SET LEGENDS ##
+0: SMILES
+1: ID
+2: Chemical formula
+3: CAS Number
+What column do you want legends
+If you don't want legends, Just [Enter]
+Please select a column number (or numbers) : 1 2 3
+
+# ./test.png is saved.
+```
+
 ## Prerequisites
 * `python` >= 3.7
 * `rdkit`

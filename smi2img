@@ -93,10 +93,13 @@ class GenerateIMG:
             if _response == "n":
                 sys.exit()
             elif _response == "Y":
-                print(_df.head())
+                # print(_df.head())
                 print("Please, select only one column.")
+                print("")
+                selected_columns_print = ''.join([f"{i}: ({j}) {_df.columns[j]} - {_df.iloc[1, j]}\n" for i, j in enumerate(selected_columns)])
+                print(f"{selected_columns_print}")
                 selected_var = int(
-                    input(f"Which column do you want? {selected_columns}")
+                    input(f"Which column do you want? ")
                 )
             return selected_columns[selected_var]
 
@@ -177,14 +180,20 @@ class GenerateIMG:
                 for i in selected_columns:
                     for _, j in enumerate(top_df.iloc[:, i]):
                         if k == 0:
-                            if type(j) in [float, int]:
+                            if type(j) == int:
+                                _string = f"{self.df_columns[i]} {j}"
+                                legends.append(_string)
+                            elif type(j) == float:
                                 _string = f"{self.df_columns[i]} {j:.3f}"
                                 legends.append(_string)
                             elif type(j) is str:
                                 _string = f"{self.df_columns[i]} {j}"
                                 legends.append(_string)
                         else:
-                            if type(j) in [float, int]:
+                            if type(j) == int:
+                                _string = f", {self.df_columns[i]} {j}"
+                                legends[_] += _string
+                            elif type(j) == float:
                                 _string = f", {self.df_columns[i]} {j:.3f}"
                                 legends[_] += _string
                             elif type(j) is str:
